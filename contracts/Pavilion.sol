@@ -4,40 +4,42 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "hardhat/console.sol";
 
+enum Direction {
+    notSet,
+    positive,
+    negative
+}
+
+enum Status {
+    open,
+    forcedClose,
+    cancelled
+}
+
+struct DirectionStruct {
+    uint256 positive;
+    uint256 negative;
+}
+
+struct Game {
+    uint256 id;
+    string name;
+    Direction outcome;
+    uint256 closesAt;
+    Status status;
+    DirectionStruct prices;
+    DirectionStruct ticketsOutstanding;
+    DirectionStruct maxQuantity;
+    mapping(address => DirectionStruct) balances;
+    mapping(address => uint256) totalSpentInCents;
+}
+
 contract Pavilion is Ownable {
-    enum Direction {
-        notSet,
-        positive,
-        negative
-    }
-
-    enum Status {
-        open,
-        forcedClose,
-        cancelled
-    }
-
-    struct DirectionStruct {
-        uint256 positive;
-        uint256 negative;
-    }
-
-    struct Game {
-        uint256 id;
-        string name;
-        Direction outcome;
-        uint256 closesAt;
-        Status status;
-        DirectionStruct prices;
-        DirectionStruct ticketsOutstanding;
-        DirectionStruct maxQuantity;
-        mapping(address => DirectionStruct) balances;
-        mapping(address => uint256) totalSpentInCents;
-    }
-
     IERC20Metadata private _currency;
     uint256 public lastGameId;
     mapping(uint256 => Game) public games;
+
+    event NewGame(uint256 id, string name, uint256 closesAt);
 
     constructor(address currencyAddress) {
         lastGameId = 0;
@@ -52,7 +54,9 @@ contract Pavilion is Ownable {
         uint256 positiveMaxQuantity,
         uint256 negativeMaxQuantity
     ) public onlyOwner {
-        lastGameId += 1;
+        require(closesAt > block.timestamp, "Should be in the future");
+
+        lastGameId++;
         Game storage game = games[lastGameId];
 
         game.id = lastGameId;
@@ -63,6 +67,8 @@ contract Pavilion is Ownable {
         game.prices.negative = negativePrice;
         game.maxQuantity.positive = positiveMaxQuantity;
         game.maxQuantity.negative = negativeMaxQuantity;
+
+        emit NewGame(lastGameId, name, closesAt);
     }
 
     function getBalance(
